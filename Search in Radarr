@@ -1,0 +1,63 @@
+export const code = async (inputs) => {
+  const tmdbId = inputs.tmdbId || (inputs.issue && inputs.issue.media && inputs.issue.media.tmdbId);
+  if (!tmdbId) {
+    console.error('Missing TMDB ID.');
+    return false;
+  }
+
+  const radarrApiKey = 'api';
+  const radarrBaseUrl = 'https://radarr.domain/radarr/api/v3';
+
+  const makeRadarrRequest = async (endpoint, method = 'GET', body = null) => {
+    const apiUrl = `${radarrBaseUrl}/${endpoint}`;
+    console.log(`Calling Radarr API: ${apiUrl}`);
+
+    const options: any = {
+      method,
+      headers: {
+        'X-Api-Key': radarrApiKey,
+        'Content-Type': 'application/json',
+      },
+    };
+
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(apiUrl, options);
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.error(`Radarr API request failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+  };
+
+  try {
+    const radarrMovies = await makeRadarrRequest(`movie?tmdbId=${tmdbId}`);
+    if (!radarrMovies || radarrMovies.length === 0) {
+      console.error('No movie found for TMDB ID:', tmdbId);
+      return false;
+    }
+
+    const radarrMovieId = radarrMovies[0].id;
+    console.log('Initiating search for Radarr movie ID:', radarrMovieId);
+
+    const searchBody = {
+      name: 'MoviesSearch',
+      movieIds: [radarrMovieId],
+    };
+
+    const result = await makeRadarrRequest('command', 'POST', searchBody);
+    if (result) {
+      console.log('Search initiated successfully.');
+    } else {
+      console.error('Search initiation failed.');
+    }
+
+    return true;
+  } catch (err) {
+    console.error('An error occurred:', err);
+    return false;
+  }
+};
