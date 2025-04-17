@@ -1,0 +1,44 @@
+export const code = async (inputs) => {
+  const issueId = inputs.issue_id;
+  const apiKey = 'api';
+  const baseURL = 'https://seerr.domain/api/v1';
+
+  const commentApiUrl = `${baseURL}/issue/${issueId}/comment`;
+  const resolveApiUrl = `${baseURL}/issue/${issueId}/resolved`;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Api-Key': apiKey,
+  };
+
+  const commentData = {
+    message: 'Please do not report an entire season as the issue. Specify each Episode number. Please delete this issue and resubmit. Your issue has been automatically marked as Resolved.',
+  };
+
+  try {
+    console.log('🛰️ Sending comment to:', commentApiUrl);
+    const commentResponse = await fetch(commentApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(commentData),
+    });
+    const commentText = await commentResponse.text();
+    console.log('📬 Comment response:', commentText);
+
+    const resolveData = { status: 5 };
+
+    console.log('✅ Sending resolve to:', resolveApiUrl);
+    const resolveResponse = await fetch(resolveApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(resolveData),
+    });
+    const resolveText = await resolveResponse.text();
+    console.log('📬 Resolve response:', resolveText);
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error occurred:', error.message);
+    return false;
+  }
+};
