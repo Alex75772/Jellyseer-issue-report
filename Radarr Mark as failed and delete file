@@ -1,0 +1,106 @@
+export const code = async (inputs) => {
+  const issueSubject = (inputs.subject || inputs.subject || '').trim();
+  console.log(`Issue subject raw: "${issueSubject}"`);
+  const movieNameRegex = /(.*)\s\((\d{4})\)/;
+  const match = movieNameRegex.exec(issueSubject);
+
+  if (!match) {
+    console.error('Issue subject does not match expected movie format.');
+    return false;
+  }
+
+  const movieName = match[1];
+  const year = match[2];
+  const tmdbId = inputs.tmdbId;
+
+  console.log(`Movie name: ${movieName}`);
+  console.log(`Year: ${year}`);
+  console.log(`TMDB ID: ${tmdbId}`);
+
+  // Replace with your actual Radarr settings
+  const radarrApiKey = 'Your-Api-Key'; 
+  const radarrBaseUrl = 'https://radarr.DomainName.com/radarr/api/v3';
+
+  // Helper function to call Radarr API
+  const makeRadarrRequest = async (endpoint, method = 'GET') => {
+    const apiUrl = `${radarrBaseUrl}/${endpoint}`;
+    console.log(`Calling Radarr API: ${apiUrl}`);
+
+    const response = await fetch(apiUrl, {
+      method,
+      headers: {
+        'X-Api-Key': radarrApiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.error(`Radarr API request failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+  };
+
+  try {
+    // Lookup movie in Radarr by TMDB ID
+    const radarrMovies = await makeRadarrRequest(`movie?tmdbId=${tmdbId}`);
+
+    if (!radarrMovies || radarrMovies.length === 0) {
+      console.error('No movies found for TMDB ID:', tmdbId);
+      return false;
+    }
+
+    const movie = radarrMovies[0];
+    const radarrMovieId = movie.id;
+    const radarrMovieFileId = movie.movieFile?.id;
+
+    console.log('Radarr Movie ID:', radarrMovieId);
+    console.log('Radarr Movie File ID:', radarrMovieFileId);
+
+    // Get history and mark most recent as failed
+    const history = await makeRadarrRequest(`history/movie?movieId=${radarrMovieId}`);
+    if (history && history.length > 0) {
+      const historyId = history[0].id;
+      console.log('History ID:', historyId);
+
+      const markFailed = await fetch(`${radarrBaseUrl}/history/failed/${historyId}`, {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': radarrApiKey,
+        },
+      });
+
+      if (markFailed.ok) {
+        console.log('Marked movie history as failed.');
+      } else {
+        console.error('Failed to mark movie as failed.');
+      }
+    } else {
+      console.warn('No history available for movie.');
+    }
+
+    // Delete movie file if it exists
+    if (radarrMovieFileId) {
+      const deleteRes = await fetch(`${radarrBaseUrl}/movieFile/${radarrMovieFileId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-Api-Key': radarrApiKey,
+        },
+      });
+
+      if (deleteRes.ok) {
+        console.log('Movie file deleted successfully.');
+      } else {
+        console.error('Failed to delete movie file.');
+      }
+    } else {
+      console.warn('No movie file to delete.');
+    }
+
+    return true;
+  } catch (err) {
+    console.error('An error occurred:', err);
+    return false;
+  }
+};
