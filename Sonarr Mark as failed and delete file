@@ -1,0 +1,102 @@
+export const code = async (inputs) => {
+  const season = parseInt(inputs.season);
+  const episode = parseInt(inputs.episode);
+  const tvdbId = inputs.tvdbId;
+
+  console.log(`Season: ${season}, Episode: ${episode}`);
+
+  const sonarrApiKey = 'api';
+  const sonarrBaseUrl = 'https://sonarr.domain/sonarr/api/v3';
+  const headers = {
+    'X-Api-Key': sonarrApiKey,
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    // Try looking up by TVDB ID first
+    let seriesData;
+    if (tvdbId) {
+      console.log(`Looking up series by TVDB ID: ${tvdbId}`);
+      const seriesRes = await fetch(`${sonarrBaseUrl}/series/lookup?term=tvdb:${tvdbId}`, { headers });
+      seriesData = await seriesRes.json();
+    }
+
+    // If not found by TVDB ID or no TVDB ID provided, try by title
+    if (!seriesData || seriesData.length === 0) {
+      console.log(`Series not found by TVDB ID, trying by title: ${inputs.subject}`);
+      const seriesRes = await fetch(`${sonarrBaseUrl}/series/lookup?term=${encodeURIComponent(inputs.subject)}`, { headers });
+      seriesData = await seriesRes.json();
+    }
+
+    if (!seriesData || seriesData.length === 0) {
+      console.error('Series not found.');
+      return false;
+    }
+
+    const seriesId = seriesData[0].id;
+    console.log(`Series ID: ${seriesId}`);
+
+    // Fetch episodes for the series
+    console.log(`Fetching episodes for series ID: ${seriesId}`);
+    const episodesRes = await fetch(`${sonarrBaseUrl}/episode?seriesId=${seriesId}`, { headers });
+    const episodes = await episodesRes.json();
+
+    // Find the specific episode
+    const episodeToDelete = episodes.find((ep) => 
+      ep.seasonNumber === season && ep.episodeNumber === episode
+    );
+
+    if (!episodeToDelete) {
+      console.error('Episode not found.');
+      return false;
+    }
+
+    console.log('Episode found:', episodeToDelete);
+
+    // Verify episodeFileId
+    if (!episodeToDelete.episodeFileId) {
+      console.error('No episode file found for this episode.');
+      return false;
+    }
+
+    // Delete the episode file directly (Sonarr v3 API)
+    console.log(`Deleting episode file ID: ${episodeToDelete.episodeFileId}`);
+    const deleteResponse = await fetch(`${sonarrBaseUrl}/episodefile/${episodeToDelete.episodeFileId}`, {
+      method: 'DELETE',
+      headers: headers,
+    });
+
+    if (!deleteResponse.ok) {
+      console.error('Failed to delete episode file:', await deleteResponse.text());
+      return false;
+    }
+
+    console.log('Episode file deleted successfully.');
+
+    // Now trigger a search for the episode
+    const searchBody = {
+      name: 'EpisodeSearch',
+      episodeIds: [episodeToDelete.id]
+    };
+
+    console.log('Triggering search for the episode...');
+    const searchResponse = await fetch(`${sonarrBaseUrl}/command`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(searchBody)
+    });
+
+    if (!searchResponse.ok) {
+      console.error('Failed to trigger search:', await searchResponse.text());
+      return false;
+    }
+
+    console.log('Search triggered successfully.');
+
+    return true;
+
+  } catch (err) {
+    console.error('Error occurred while processing:', err);
+    return false;
+  }
+};
