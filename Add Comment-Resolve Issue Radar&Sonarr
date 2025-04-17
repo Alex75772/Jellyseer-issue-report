@@ -1,0 +1,44 @@
+export const code = async (inputs) => {
+  const issueId = inputs.issue_id;
+  const apiKey = 'MTc0Mzc5MTE4MzA5MGY1OWM5MDI3LWM5MzctNDliMi05MmQxLWQ5OTdmYzAyYjEwOA==';
+  const baseURL = 'https://seerr.jelly.cloudns.ph/api/v1';
+
+  const commentApiUrl = `${baseURL}/issue/${issueId}/comment`;
+  const resolveApiUrl = `${baseURL}/issue/${issueId}/resolved`;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Api-Key': apiKey,
+  };
+
+  const commentData = {
+    message: 'Your issue has been approved and a new version of the content is being automatically downloaded and will be updated in Jellyfin. Your issue has been set to Resolved. If you are still experiencing problems, re-open your issue.',
+  };
+
+  try {
+    console.log('🛰️ Sending comment to:', commentApiUrl);
+    const commentResponse = await fetch(commentApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(commentData),
+    });
+    const commentText = await commentResponse.text();
+    console.log('📬 Comment response:', commentText);
+
+    const resolveData = { status: 5 };
+
+    console.log('✅ Sending resolve to:', resolveApiUrl);
+    const resolveResponse = await fetch(resolveApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(resolveData),
+    });
+    const resolveText = await resolveResponse.text();
+    console.log('📬 Resolve response:', resolveText);
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error occurred:', error.message);
+    return false;
+  }
+};
